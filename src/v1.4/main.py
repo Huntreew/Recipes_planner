@@ -1,4 +1,3 @@
-# VERSION 1.4
 """
 Bux fixes
 Adding recipes tracking used for not selecting them again in a certain days span (cca 10 days ago)
@@ -10,6 +9,7 @@ from datetime import date
 from dbs_handler import DatabasesHandler
 import random
 
+DEV_MODE = True  # Enables control prints and other info to console
 
 # -------- TO DOs ---------
 #
@@ -22,6 +22,7 @@ import random
 # today = date.strftime(today, "%d/%m/%Y").split("/")
 
 h = DatabasesHandler("rec_test_db", "ing_test_db", "nut_test_db")
+h.DEV_MODE = DEV_MODE
 
 nuts_names = []
 for i in range(100):
@@ -37,7 +38,7 @@ for i in range(ing_count):
         nuts[nut_name] = random.randint(1, 100)
     h.ingDB.add({"name": f"ing{i}", "nuts": nuts})
 #
-for i in range(10):
+for i in range(20):
     ings_ids = {}
     for a in range(random.randint(3, 15)):
         ings_ids[random.randint(0, ing_count - 1)] = random.randint(50, 200) - 50
