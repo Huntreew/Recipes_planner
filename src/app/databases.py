@@ -47,10 +47,11 @@ class Database:
         self.load_db()
         new_item["name"] = new_item["name"].lower()
         if self.db:
-            new_id = int(max(list(self.db.keys()))) + 1
+            conv = [int(x) for x in list(self.db.keys())]
+            new_id = max(conv) + 1
         else:
             new_id = 0
-        new_item["id"] = new_id
+        new_item["id"] = str(new_id)
         self.db[new_id] = new_item
         self.save_db()
 
@@ -74,7 +75,7 @@ class RecipeDatabase(Database):
     def custom_rec(self):
         pass
 
-    def select_top_recipes(self, ings: list, how_many: int = 5) -> list:
+    def select_top_recipes(self, ings: list, cooked_recipes: list, how_many: int = 5) -> list:
         """
         Takes list of ingredients IDs and search the best recipes based on amount used in recipe
         :param ings:
@@ -86,17 +87,18 @@ class RecipeDatabase(Database):
         top_recipes: list = []
         recipes_scores: dict = {}
         for recipe_id in recipes:
-            for ing_id in ings:
-                # Check if recipe already has a score
-                try:
-                    recipes_scores[recipe_id]
-                except KeyError:
-                    recipes_scores[recipe_id] = 0
-                try:
-                    ings_ids = recipes[recipe_id]["ings_ids"]
-                    recipes_scores[recipe_id] += ings_ids[str(ing_id)]     # ads AMOUNT of the ingredient
-                except KeyError:
-                    pass
+            if recipe_id not in cooked_recipes:     # prevents from choosing same recipe again
+                for ing_id in ings:
+                    # Check if recipe already has a score
+                    try:
+                        recipes_scores[recipe_id]
+                    except KeyError:
+                        recipes_scores[recipe_id] = 0
+                    try:
+                        ings_ids = recipes[recipe_id]["ings_ids"]
+                        recipes_scores[recipe_id] += ings_ids[str(ing_id)]     # ads AMOUNT of the ingredient
+                    except KeyError:
+                        pass
         print("\nRecipes Scores: ", recipes_scores)
         if how_many > len(recipes_scores):
             how_many = len(recipes_scores)
