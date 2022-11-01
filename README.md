@@ -1,3 +1,4 @@
+# In development
 # Recipes handling project
 # This project is for people who are bored or just don't have time to think about what to cook every day.
 # Based on nutrient tracking app will choose the best recipe to cook.
