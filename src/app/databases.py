@@ -1,4 +1,4 @@
-import json
+import pandas as pd
 
 
 # ------------ PREPARATION OF INDIVIDUAL DATABASES ------------
@@ -7,9 +7,9 @@ class Database:
     """Database backbone containing some common functionality"""
 
     def __init__(self, filename):
-        self.db = None
+        self.df = pd.DataFrame()
         self.filename = filename
-        self.start_file(self.filename)
+        self.start_file(filename)
 
     @staticmethod
     def start_file(filename):
@@ -20,50 +20,38 @@ class Database:
             with open(filename, "w"):
                 print(filename + " CREATED")
         try:
-            with open(filename, "r") as file:
-                json.load(file)
+            with open(filename, "r"):
+                pd.read_json(filename)
         except Exception:
             with open(filename, "w") as file:
-                json.dump({}, file)
+                file.write("{}")
 
     def clear_db(self):
-        self.db = {}
-        self.save_db()
+        self.df = ""
+        self.save_df()
 
-    def load_db(self):
+    def load_df(self):
         with open(self.filename, "r") as file:
-            self.db = json.load(file)
+            self.df = pd.read_json(file)
 
-    def save_db(self):
+    def save_df(self):
         with open(self.filename, "w") as file:
-            json.dump(self.db, file)
+            file.write(self.df.to_json())
 
     def add(self, new_item: dict):
         """
-        Adds new item to database
-        Dictionary format -> ID is the KEY holding recipe dictionary
+        Adds new item to DataFrame
         :param new_item:
         """
-        self.load_db()
+        self.load_df()
         new_item["name"] = new_item["name"].lower()
-        if self.db:
-            conv = [int(x) for x in list(self.db.keys())]
-            new_id = max(conv) + 1
+        if not self.df.empty:
+            new_id = self.df.tail(1).index.item() + 1
         else:
             new_id = 0
-        new_item["id"] = str(new_id)
-        self.db[new_id] = new_item
-        self.save_db()
-
-    def remove(self, item_id: str or int) -> bool:
-        self.load_db()
-        try:
-            self.db.pop(str(item_id))
-            self.save_db()
-            return True
-        except KeyError:
-            pass
-        return False
+        new_item["id"] = int(new_id)
+        self.df = pd.concat([self.df, pd.DataFrame([new_item])], ignore_index=True)
+        self.save_df()
 
 
 class RecipeDatabase(Database):
@@ -75,44 +63,19 @@ class RecipeDatabase(Database):
     def custom_rec(self):
         pass
 
-    def select_top_recipes(self, ings: list, cooked_recipes: list, how_many: int = 5) -> list:
+    def select_top_recipes(self, ings: list, cooked_recipes: list, max_in_arr: int = 5) -> list:
         """
         Takes list of ingredients IDs and search the best recipes based on amount used in recipe
         :param ings:
         :param how_many:
         :return: top_recipes:
         """
-        self.load_db()
-        recipes = self.db
-        top_recipes: list = []
-        recipes_scores: dict = {}
-        for recipe_id in recipes:
-            if recipe_id not in cooked_recipes:     # prevents from choosing same recipe again
-                for ing_id in ings:
-                    # Check if recipe already has a score
-                    try:
-                        recipes_scores[recipe_id]
-                    except KeyError:
-                        recipes_scores[recipe_id] = 0
-                    try:
-                        ings_ids = recipes[recipe_id]["ings_ids"]
-                        recipes_scores[recipe_id] += ings_ids[str(ing_id)]     # ads AMOUNT of the ingredient
-                    except KeyError:
-                        pass
-        print("\nRecipes Scores: ", recipes_scores)
-        if how_many > len(recipes_scores):
-            how_many = len(recipes_scores)
-        # This block shall be remade
-        for i in range(how_many):  # determines how many ids will be returned
-            best: dict = {"id": 0, "score": -1}
-            for recipe_id in recipes_scores:
-                if recipes_scores[recipe_id] > best["score"]:
-                    best["id"] = recipe_id
-                    best["score"] = recipes_scores[recipe_id]
-            top_recipes.append(best["id"])
-            recipes_scores.pop(best["id"])
-        print("\nTOP RECIPES: ", top_recipes)
-        return top_recipes
+        self.load_df()
+        rec_scores = pd.DataFrame(list(self.df["ings_ids"]), index=list(self.df["id"]),
+                                  columns=[str(x) for x in list(ings)])
+        rec_scores = rec_scores.sum(axis=1)
+        rec_scores = rec_scores.sort_values(ascending=False).iloc[0:max_in_arr]
+        return list(rec_scores.index)
 
 
 class IngredientDatabase(Database):
@@ -124,152 +87,34 @@ class IngredientDatabase(Database):
     def custom_ing(self):
         pass
 
-    def search_ings(self, nut_name: str, max_in_arr: int = 10) -> list:
+    def search_ings(self, low_nuts: pd.Series, max_in_arr: int = 10) -> list:
         """Returns arrays with top ingredients for given nutrient
         Array contains ingredients IDs"""
 
-        self.load_db()
-        best_ings = []
-        for ing_id in self.db:
-            ing_nuts = self.db[ing_id]["nuts"]
-            try:
-                if ing_nuts[nut_name] > 0:                         # check if there is needed nutrient
-                    best_ings.append(self.db[ing_id])              # appending whole ingredient dictionary
-            except KeyError:
-                pass
-        # Sorting best ingredients
-        sorted_ings = self.sort_ings_by_nut(ing_arr=best_ings, nut_name=nut_name)
-        if max_in_arr <= len(sorted_ings):
-            sorted_ings = sorted_ings[0:max_in_arr]                 # shortens array to maximal item count
-        return sorted_ings
-
-    @staticmethod
-    def sort_ings_by_nut(ing_arr: list, nut_name: str) -> list:
-        """Returns sorted list with only IDs of ingredients"""
-
-        ings_sorted = []
-        values_sorted = reversed(sorted([ing["nuts"][nut_name] for ing in ing_arr]))    # just sorting numbers in array
-        # Sorting ingredients via sorted values
-        for val in values_sorted:
-            for ing in ing_arr:
-                if ing["nuts"][nut_name] == val:
-                    ings_sorted.append(ing["id"])
-                    ing_arr.remove(ing)
-                    break
-        return ings_sorted
-
-    @staticmethod
-    def select_top_ings(ings_total: list, how_many: int = 5) -> list:
-        """
-        Takes array with arrays containing ingredient ids
-        :param ings_total:
-        :param how_many:
-        :return: top_ings:
-        """
-        top_ings: list = []
-        ings_scores: dict = {}
-        # Computing score for every ingredient id
-        for ing_arr in ings_total:
-            for ing_id in ing_arr:
-                try:
-                    ings_scores[ing_id]
-                except KeyError:
-                    ings_scores[ing_id] = 0
-                ings_scores[ing_id] += len(ing_arr) - ing_arr.index(ing_id)
-
-        print("\nIngredient Scores: ", ings_scores)
-        # Sorting out top ingredient IDs
-        if how_many > len(ings_scores):
-            how_many = len(ings_scores)
-        for i in range(how_many):           # determines how many ids will be returned
-            best: int = list(ings_scores.keys())[0]
-            for ing_id in ings_scores:
-                if ings_scores[ing_id] > ings_scores[best]:
-                    best = ing_id
-            top_ings.append(best)
-            ings_scores.pop(best)
-        return top_ings
+        self.load_df()
+        pre_scores_df = pd.DataFrame(list(self.df["nuts"]),
+                                     index=list(self.df["id"]),
+                                     columns=[str(x) for x in list(low_nuts.index)])
+        pre_scores_df = pre_scores_df.mul(low_nuts)
+        scores = pre_scores_df.sum(axis=1)
+        scores = scores.sort_values(ascending=False).iloc[0:max_in_arr]
+        return list(scores.index)
 
 
-class NutriReportDatabase:
+class NutriReportDatabase(Database):
 
     def __init__(self, filename):
-        self.db = None
-        self.filename = filename
-        self.start_file(self.filename)
+        super().__init__(filename)
 
-    @staticmethod
-    def start_file(filename):
-        try:
-            with open(filename, "r"):
-                print(filename + " EXISTS")
-        except FileNotFoundError:
-            with open(filename, "w"):
-                print(filename + " CREATED")
-        try:
-            with open(filename, "r") as file:
-                json.load(file)
-        except Exception:
-            with open(filename, "w") as file:
-                json.dump({}, file)
-
-    def clear_db(self):
-        self.db = None
-        self.save_db()
-
-    def load_db(self):
-        with open(self.filename, "r") as file:
-            self.db = json.load(file)
-
-    def save_db(self):
-        with open(self.filename, "w") as file:
-            json.dump(self.db, file)
-
-    def add_from_csv(self, file):
-        pass
-
-    def add(self, new_nutrient: dict):
-        """
-        Adds new nutrient for tracking in database
-        Dictionary format -> name: {name: , current: , perday: }
-        :param new_nutrient:
-        :return: None
-        """
-        self.load_db()
-        new_nutrient["name"] = new_nutrient["name"].lower()
-        try:
-            var = self.db[new_nutrient["name"]]
-            print("\nNutrient NAME already TAKEN\n")
-        except KeyError:
-            self.db[new_nutrient["name"]] = new_nutrient
-            self.save_db()
-
-    def search_for_lows(self) -> list:
-        self.load_db()
-        deficit_arr = []
-        for nut_name in self.db:
-            deficit = self.db[nut_name]["current"] / self.db[nut_name]["perday"]
-            deficit_arr.append({"name": self.db[nut_name]["name"], "deficit": deficit})
-        return deficit_arr
-
-    @staticmethod
-    def sort_lows(low_nuts_raw) -> list:
-        """
-        :param low_nuts_raw:
-        :return low_nuts_sorted: in format [{name: , deficit: }]
-        """
-        low_nuts_sorted = []
-        deficits_sorted = sorted([val["deficit"] for val in low_nuts_raw])
-        for val in deficits_sorted:
-            for nut in low_nuts_raw:
-                if nut["deficit"] == val:
-                    low_nuts_sorted.append(nut)
-        return low_nuts_sorted
+    def search_for_lows(self, nuts_count: int = 20) -> pd.Series:
+        self.load_df()
+        deficit = list(self.df["current"] / self.df["perday"])
+        s = pd.Series([abs(d) if d < 0 else 0.1 for d in deficit], [str(x) for x in list(self.df["id"])])
+        return s.sort_values(ascending=False).iloc[0:nuts_count]
 
     def sub_daily_supply(self):
         """Subs daily supply from current"""
-        self.load_db()
-        for nut_name in self.db:
-            self.db[nut_name]["current"] -= self.db[nut_name]["perday"]
-        self.save_db()
+        self.load_df()
+        self.df["current"] -= self.df["perday"]
+        self.save_df()
 
