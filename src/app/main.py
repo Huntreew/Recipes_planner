@@ -1,7 +1,6 @@
 """
 Bux fixes
 Adding recipes tracking used for not selecting them again in a certain days span (cca 10 days ago)
-Problems: computing slows down exponentially when databases get bigger
 """
 
 import json
@@ -28,26 +27,27 @@ h.DEV_MODE = True    # Enables control prints and other info to console
 
 
 nuts_ids = []
-# for i in range(1000):
+# for i in range(100):
 #     perday = random.randint(1, 50)
 #     nut_name = i
 #     h.nutDB.add({"name": f"{nut_name}", "perday": perday, "current": perday})
 #     nuts_ids.append(nut_name)
 # #
-# ing_count = 400
+# ing_count = 100
 # for i in range(ing_count):
 #     nuts = {}
 #     for nut_name in nuts_ids:
 #         nuts[nut_name] = random.randint(1, 100)
 #     h.ingDB.add({"name": f"ing{i}", "nuts": nuts})
 #
-# for i in range(500):
+# for i in range(50):
 #     ings_ids = {}
 #     for x in range(random.randint(3, 15)):
-#         ings_ids[str(random.randint(0, ing_count))] = random.randint(50, 200) - 50
+#         ings_ids[str(random.randint(0, ing_count - 1))] = random.randint(50, 200) - 50
 #     h.recDB.add({"name": f"rec{i}", "ings_ids": ings_ids, "time": 0, "bf": False, "ln": True, "dn": True, "sn": False})
-
+#
 h.nutDB.sub_daily_supply()
 rec_id = h.choose_recipe()
 print(rec_id)
-# h.update_nutDB_by_recipe(rec_id)
+h.update_nutDB_by_recipe(rec_id)
+print(h.nutDB.df)
